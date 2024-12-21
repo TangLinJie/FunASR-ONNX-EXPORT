@@ -259,7 +259,23 @@ class Paraformer(torch.nn.Module):
                 speech, speech_lengths = self.normalize(speech, speech_lengths)
 
         # Forward encoder
-        encoder_out, encoder_out_lens, _ = self.encoder(speech, speech_lengths)
+        from funasr.models.transformer.utils.nets_utils import make_pad_mask
+        masks = (~make_pad_mask(speech_lengths)[:, None, :]).to(speech.device)
+        from torch.nn import functional as F
+        real_num = speech.shape[1]
+        masks = F.pad(masks, (0,1000-real_num), "constant", 0)
+        speech = F.pad(speech, (0,0,0,1000-real_num), "constant", 0)
+        # export
+        """
+        input_names = ['speech', 'masks']
+        output_names = ['encoder_out', 'encoder_out_lens']
+        inputs = (speech,  masks)
+        torch.onnx.export(self.encoder.cpu(), inputs, 'encoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        import sys
+        sys.exit(0)
+        """
+        encoder_out, encoder_out_lens = self.encoder(speech, masks)
+        encoder_out = encoder_out[:, :encoder_out_lens[0]]
         if isinstance(encoder_out, tuple):
             encoder_out = encoder_out[0]
 
@@ -270,17 +286,58 @@ class Paraformer(torch.nn.Module):
         encoder_out_mask = (
             ~make_pad_mask(encoder_out_lens, maxlen=encoder_out.size(1))[:, None, :]
         ).to(encoder_out.device)
-        pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index = self.predictor(
-            encoder_out, None, encoder_out_mask, ignore_id=self.ignore_id
+        real_num = encoder_out_mask.shape[-1]
+        from torch.nn import functional as F
+        encoder_out_mask = F.pad(encoder_out_mask, (0,1000-real_num), "constant", 0)
+        encoder_out = F.pad(encoder_out, (0,0,0,1000-real_num), "constant", 0)
+
+        # export
+        """
+        input_names = ['encoder_out', 'encoder_out_mask']
+        output_names = ['hidden', 'pre_token_length', 'alphas']
+        inputs = (encoder_out, encoder_out_mask)
+        torch.onnx.export(self.predictor.cpu(), inputs, 'calc_predictor.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        import sys
+        sys.exit(0)
+        """
+
+        # pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index = self.predictor(
+        hidden, pre_token_length, alphas = self.predictor(
+            encoder_out, encoder_out_mask, ignore_id=self.ignore_id
         )
+        hidden = hidden[:, :real_num+1]
+        alphas = alphas[:, :real_num+1]
+        from funasr.models.paraformer.cif_predictor import cif
+        pre_acoustic_embeds, pre_peak_index = cif(hidden, alphas, self.predictor.threshold)
+        token_num_int = torch.max(pre_token_length).type(torch.int32).item()
+        pre_acoustic_embeds = pre_acoustic_embeds[:, :token_num_int, :]
         return pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index
 
     def cal_decoder_with_predictor(
         self, encoder_out, encoder_out_lens, sematic_embeds, ys_pad_lens
     ):
 
-        decoder_outs = self.decoder(encoder_out, encoder_out_lens, sematic_embeds, ys_pad_lens)
-        decoder_out = decoder_outs[0]
+        from funasr.models.scama import utils as myutils
+        tgt_mask = myutils.sequence_mask(ys_pad_lens, device=sematic_embeds.device)[:, :, None]
+        memory_mask = myutils.sequence_mask(encoder_out_lens, device=encoder_out.device)[:, None, :]
+        from torch.nn import functional as F
+        real_num = encoder_out.shape[1]
+        memory_mask = F.pad(memory_mask, (0,1000-real_num), "constant", 0)
+        encoder_out = F.pad(encoder_out, (0,0,0,1000-real_num), "constant", 0)
+        semantic_real_num = sematic_embeds.shape[1]
+        sematic_embeds = F.pad(sematic_embeds, (0,0,0,600-semantic_real_num), "constant", 0)
+        tgt_mask = F.pad(tgt_mask, (0,0,0,600-semantic_real_num), "constant", 0)
+
+        # export
+        input_names = ['encoder_out', 'memory_mask', 'sematic_embeds', 'tgt_mask']
+        output_names = ['decoder_outs']
+        inputs = (encoder_out, memory_mask, sematic_embeds, tgt_mask)
+        torch.onnx.export(self.decoder.cpu(), inputs, 'decoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        import sys
+        sys.exit(0)
+
+        decoder_outs = self.decoder(encoder_out, memory_mask, sematic_embeds, tgt_mask)
+        decoder_out = decoder_outs[:, :semantic_real_num] # [0]
         decoder_out = torch.log_softmax(decoder_out, dim=-1)
         return decoder_out, ys_pad_lens
 

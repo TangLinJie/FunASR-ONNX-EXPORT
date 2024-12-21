@@ -124,6 +124,12 @@ FunASR has open-sourced a large number of pre-trained models on industrial data.
 [//]: # ()
 [//]: # (FunASR supports pre-trained or further fine-tuned models for deployment as a service. The CPU version of the Chinese offline file conversion service has been released, details can be found in [docs]&#40;funasr/runtime/docs/SDK_tutorial.md&#41;. More detailed information about service deployment can be found in the [deployment roadmap]&#40;funasr/runtime/readme_cn.md&#41;.)
 
+## Export ONNX
+Support:
+- iic/speech_paraformer_asr-en-16k-vocab4199-pytorch
+```bash
+python export_contextual_paraformer_onnx.py
+```
 
 <a name="quick-start"></a>
 ## Quick Start

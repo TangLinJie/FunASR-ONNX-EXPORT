@@ -202,12 +202,15 @@ class CifPredictorV2(torch.nn.Module):
     def forward(
         self,
         hidden,
-        target_label=None,
+        # target_label=None,
         mask=None,
         ignore_id=-1,
-        mask_chunk_predictor=None,
-        target_label_length=None,
+        # mask_chunk_predictor=None,
+        # target_label_length=None,
     ):
+        target_label = None
+        mask_chunk_predictor=None
+        target_label_length=None
 
         with autocast(False):
             h = hidden
@@ -245,12 +248,13 @@ class CifPredictorV2(torch.nn.Module):
                         hidden, alphas, token_num, mask=None
                     )
 
-            acoustic_embeds, cif_peak = cif(hidden, alphas, self.threshold)
-            if target_length is None and self.tail_threshold > 0.0:
-                token_num_int = torch.max(token_num).type(torch.int32).item()
-                acoustic_embeds = acoustic_embeds[:, :token_num_int, :]
+            # acoustic_embeds, cif_peak = cif(hidden, alphas, self.threshold)
+            # if target_length is None and self.tail_threshold > 0.0:
+            #     token_num_int = torch.max(token_num).type(torch.int32).item()
+            #     acoustic_embeds = acoustic_embeds[:, :token_num_int, :]
 
-        return acoustic_embeds, token_num, alphas, cif_peak
+        # return acoustic_embeds, token_num, alphas, cif_peak
+        return hidden, token_num, alphas
 
     def forward_chunk(self, hidden, cache=None, **kwargs):
         is_final = kwargs.get("is_final", False)

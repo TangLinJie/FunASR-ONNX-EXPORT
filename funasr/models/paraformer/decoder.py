@@ -359,12 +359,11 @@ class ParaformerSANMDecoder(BaseTransformerDecoder):
     def forward(
         self,
         hs_pad: torch.Tensor,
-        hlens: torch.Tensor,
+        # hlens: torch.Tensor,
+        memory_mask,
         ys_in_pad: torch.Tensor,
-        ys_in_lens: torch.Tensor,
-        chunk_mask: torch.Tensor = None,
-        return_hidden: bool = False,
-        return_both: bool = False,
+        # ys_in_lens: torch.Tensor,
+        tgt_mask,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward decoder.
 
@@ -383,11 +382,15 @@ class ParaformerSANMDecoder(BaseTransformerDecoder):
                 if use_output_layer is True,
             olens: (batch, )
         """
+        chunk_mask: torch.Tensor = None
+        return_hidden = False
+        return_both = False
+
         tgt = ys_in_pad
-        tgt_mask = myutils.sequence_mask(ys_in_lens, device=tgt.device)[:, :, None]
+        # tgt_mask = myutils.sequence_mask(ys_in_lens, device=tgt.device)[:, :, None]
 
         memory = hs_pad
-        memory_mask = myutils.sequence_mask(hlens, device=memory.device)[:, None, :]
+        # memory_mask = myutils.sequence_mask(hlens, device=memory.device)[:, None, :]
         if chunk_mask is not None:
             memory_mask = memory_mask * chunk_mask
             if tgt_mask.size(1) != memory_mask.size(1):
@@ -401,10 +404,10 @@ class ParaformerSANMDecoder(BaseTransformerDecoder):
         if self.normalize_before:
             hidden = self.after_norm(x)
 
-        olens = tgt_mask.sum(1)
+        # olens = tgt_mask.sum(1)
         if self.output_layer is not None and return_hidden is False:
             x = self.output_layer(hidden)
-            return x, olens
+            return x # , olens
         if return_both:
             x = self.output_layer(hidden)
             return x, hidden, olens

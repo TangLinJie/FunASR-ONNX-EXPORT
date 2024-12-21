@@ -374,7 +374,8 @@ class SANMEncoder(nn.Module):
         Returns:
             position embedded tensor and mask
         """
-        masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
+        # masks = (~make_pad_mask(ilens)[:, None, :]).to(xs_pad.device)
+        masks = ilens
         xs_pad = xs_pad * self.output_size() ** 0.5
         if self.embed is None:
             xs_pad = xs_pad
@@ -427,7 +428,8 @@ class SANMEncoder(nn.Module):
         olens = masks.squeeze(1).sum(1)
         if len(intermediate_outs) > 0:
             return (xs_pad, intermediate_outs), olens, None
-        return xs_pad, olens, None
+        # return xs_pad, olens, None
+        return xs_pad, olens
 
     def _add_overlap_chunk(self, feats: np.ndarray, cache: dict = {}):
         if len(cache) == 0:

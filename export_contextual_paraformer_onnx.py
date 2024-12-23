@@ -26,6 +26,12 @@ def process():
 
 process()
 """
+import os
+out_dirs = 'models/onnx'
+
+if not os.path.exists(out_dirs):
+    os.makedirs(out_dirs)
+
 
 from funasr import AutoModel
 import time

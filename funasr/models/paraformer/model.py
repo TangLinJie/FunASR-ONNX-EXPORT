@@ -270,7 +270,7 @@ class Paraformer(torch.nn.Module):
         input_names = ['speech', 'masks']
         output_names = ['encoder_out', 'encoder_out_lens']
         inputs = (speech,  masks)
-        torch.onnx.export(self.encoder.cpu(), inputs, 'encoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        torch.onnx.export(self.encoder.cpu(), inputs, 'models/onnx/encoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
         import sys
         sys.exit(0)
         """
@@ -296,7 +296,7 @@ class Paraformer(torch.nn.Module):
         input_names = ['encoder_out', 'encoder_out_mask']
         output_names = ['hidden', 'pre_token_length', 'alphas']
         inputs = (encoder_out, encoder_out_mask)
-        torch.onnx.export(self.predictor.cpu(), inputs, 'calc_predictor.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        torch.onnx.export(self.predictor.cpu(), inputs, 'models/onnx/calc_predictor.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
         import sys
         sys.exit(0)
         """
@@ -332,7 +332,7 @@ class Paraformer(torch.nn.Module):
         input_names = ['encoder_out', 'memory_mask', 'sematic_embeds', 'tgt_mask']
         output_names = ['decoder_outs']
         inputs = (encoder_out, memory_mask, sematic_embeds, tgt_mask)
-        torch.onnx.export(self.decoder.cpu(), inputs, 'decoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        torch.onnx.export(self.decoder.cpu(), inputs, 'models/onnx/decoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
         import sys
         sys.exit(0)
 

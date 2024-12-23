@@ -228,7 +228,8 @@ class CifPredictorV2(torch.nn.Module):
             if mask_chunk_predictor is not None:
                 alphas = alphas * mask_chunk_predictor
             alphas = alphas.squeeze(-1)
-            mask = mask.squeeze(-1)
+            if mask is not None:
+                mask = mask.squeeze(-1)
             if target_label_length is not None:
                 target_length = target_label_length.squeeze(-1)
             elif target_label is not None:

@@ -360,10 +360,10 @@ class ParaformerSANMDecoder(BaseTransformerDecoder):
         self,
         hs_pad: torch.Tensor,
         # hlens: torch.Tensor,
-        memory_mask,
         ys_in_pad: torch.Tensor,
         # ys_in_lens: torch.Tensor,
-        tgt_mask,
+        memory_mask=None,
+        tgt_mask=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward decoder.
 

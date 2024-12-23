@@ -261,12 +261,14 @@ class Paraformer(torch.nn.Module):
         # Forward encoder
         from funasr.models.transformer.utils.nets_utils import make_pad_mask
         masks = (~make_pad_mask(speech_lengths)[:, None, :]).to(speech.device)
+
+        # static export
+        """
         from torch.nn import functional as F
         real_num = speech.shape[1]
         masks = F.pad(masks, (0,1000-real_num), "constant", 0)
         speech = F.pad(speech, (0,0,0,1000-real_num), "constant", 0)
-        # export
-        """
+
         input_names = ['speech', 'masks']
         output_names = ['encoder_out', 'encoder_out_lens']
         inputs = (speech,  masks)
@@ -274,7 +276,8 @@ class Paraformer(torch.nn.Module):
         import sys
         sys.exit(0)
         """
-        # bmodel
+
+        # static bmodel
         """
         from sophon import sail
         encoder_net = sail.Engine("models/BM1688/encoder_f32.bmodel", 0, sail.IOMode.SYSIO)
@@ -290,7 +293,37 @@ class Paraformer(torch.nn.Module):
         encoder_out_lens = torch.from_numpy(outputs[encoder_net_output_names[1]])
         encoder_out_lens = encoder_out_lens.type(torch.int32)
         """
-        encoder_out, encoder_out_lens = self.encoder(speech, masks)
+
+        # dynamic export
+        """
+        input_names = ['speech']
+        output_names = ['encoder_out']
+        dynamic_axes = {
+            'speech' : {1: 'seq_len'},
+        }
+        inputs = (speech,)
+        torch.onnx.export(self.encoder.cpu(), inputs, 'models/onnx/encoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12, dynamic_axes=dynamic_axes)
+        import sys
+        sys.exit(0)
+        """
+
+        # dynamic bmodel
+        """
+        from sophon import sail
+        encoder_net = sail.Engine("models/BM1688/encoder_f16.bmodel", 0, sail.IOMode.SYSIO)
+        encoder_net_graph_name = encoder_net.get_graph_names()[0]
+        encoder_net_input_names = encoder_net.get_input_names(encoder_net_graph_name)
+        encoder_net_output_names = encoder_net.get_output_names(encoder_net_graph_name)
+        inputs = {
+            encoder_net_input_names[0]: speech.numpy(),
+        }
+        outputs = encoder_net.process(encoder_net_graph_name, inputs)
+        encoder_out = torch.from_numpy(outputs[encoder_net_output_names[0]])
+        """
+
+        # encoder_out, encoder_out_lens = self.encoder(speech, masks)
+        encoder_out = self.encoder(speech, None)
+        encoder_out_lens = torch.tensor([encoder_out.shape[1]], dtype=torch.int32)
         encoder_out = encoder_out[:, :encoder_out_lens[0]]
         if isinstance(encoder_out, tuple):
             encoder_out = encoder_out[0]
@@ -303,21 +336,22 @@ class Paraformer(torch.nn.Module):
             ~make_pad_mask(encoder_out_lens, maxlen=encoder_out.size(1))[:, None, :]
         ).to(encoder_out.device)
         real_num = encoder_out_mask.shape[-1]
+
+        # static export
+        """
         from torch.nn import functional as F
         encoder_out_mask = F.pad(encoder_out_mask, (0,1000-real_num), "constant", 0)
         encoder_out = F.pad(encoder_out, (0,0,0,1000-real_num), "constant", 0)
 
-        # export
-        """
         input_names = ['encoder_out', 'encoder_out_mask']
         output_names = ['hidden', 'pre_token_length', 'alphas']
         inputs = (encoder_out, encoder_out_mask)
-        torch.onnx.export(self.predictor.cpu(), inputs, '../../../models/onnx/calc_predictor.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        torch.onnx.export(self.predictor.cpu(), inputs, 'models/onnx/calc_predictor.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
         import sys
         sys.exit(0)
         """
 
-        # bmodel
+        # static bmodel
         """
         from sophon import sail
         calc_predictor_net = sail.Engine("models/BM1688/calc_predictor_f16.bmodel", 0, sail.IOMode.SYSIO)
@@ -334,9 +368,39 @@ class Paraformer(torch.nn.Module):
         alphas = torch.from_numpy(outputs[calc_predictor_net_output_names[2]])
         """
 
+        # dynamic export
+        """
+        input_names = ['encoder_out']
+        output_names = ['hidden', 'pre_token_length', 'alphas']
+        inputs = (encoder_out,)
+        dynamic_axes = {
+            'encoder_out' : {1: 'seq_len'},
+        }
+        torch.onnx.export(self.predictor.cpu(), inputs, 'models/onnx/calc_predictor.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12, dynamic_axes=dynamic_axes)
+        import sys
+        sys.exit(0)
+        """
+
+        # dynamic bmodel
+        """
+        from sophon import sail
+        calc_predictor_net = sail.Engine("models/BM1688/calc_predictor_f32.bmodel", 0, sail.IOMode.SYSIO)
+        calc_predictor_net_graph_name = calc_predictor_net.get_graph_names()[0]
+        calc_predictor_net_input_names = calc_predictor_net.get_input_names(calc_predictor_net_graph_name)
+        calc_predictor_net_output_names = calc_predictor_net.get_output_names(calc_predictor_net_graph_name)
+        inputs = {
+            calc_predictor_net_input_names[0]: encoder_out.numpy(),
+        }
+        outputs = calc_predictor_net.process(calc_predictor_net_graph_name, inputs)
+        hidden = torch.from_numpy(outputs[calc_predictor_net_output_names[0]])
+        pre_token_length = torch.from_numpy(outputs[calc_predictor_net_output_names[1]])
+        alphas = torch.from_numpy(outputs[calc_predictor_net_output_names[2]])
+        """
+
         # pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index = self.predictor(
         hidden, pre_token_length, alphas = self.predictor(
-            encoder_out, encoder_out_mask, ignore_id=self.ignore_id
+        #     encoder_out, encoder_out_mask, ignore_id=self.ignore_id
+            encoder_out, None, ignore_id=self.ignore_id
         )
         hidden = hidden[:, :real_num+1]
         alphas = alphas[:, :real_num+1]
@@ -353,6 +417,10 @@ class Paraformer(torch.nn.Module):
         from funasr.models.scama import utils as myutils
         tgt_mask = myutils.sequence_mask(ys_pad_lens, device=sematic_embeds.device)[:, :, None]
         memory_mask = myutils.sequence_mask(encoder_out_lens, device=encoder_out.device)[:, None, :]
+        real_num = encoder_out.shape[1]
+        semantic_real_num = sematic_embeds.shape[1]
+        # export static
+        """
         from torch.nn import functional as F
         real_num = encoder_out.shape[1]
         memory_mask = F.pad(memory_mask, (0,1000-real_num), "constant", 0)
@@ -361,17 +429,15 @@ class Paraformer(torch.nn.Module):
         sematic_embeds = F.pad(sematic_embeds, (0,0,0,600-semantic_real_num), "constant", 0)
         tgt_mask = F.pad(tgt_mask, (0,0,0,600-semantic_real_num), "constant", 0)
 
-        # export
-        """
-        input_names = ['encoder_out', 'memory_mask', 'sematic_embeds', 'tgt_mask']
+        input_names = ['encoder_out', 'sematic_embeds', 'memory_mask', 'tgt_mask']
         output_names = ['decoder_outs']
-        inputs = (encoder_out, memory_mask, sematic_embeds, tgt_mask)
-        torch.onnx.export(self.decoder.cpu(), inputs, '../../../models/onnx/decoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
+        inputs = (encoder_out, sematic_embeds, memory_mask, tgt_mask)
+        torch.onnx.export(self.decoder.cpu(), inputs, 'models/onnx/decoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12)
         import sys
         sys.exit(0)
         """
 
-        # bmodel
+        # static bmodel
         """
         from sophon import sail
         decoder_net = sail.Engine("models/BM1688/decoder_f32.bmodel", 0, sail.IOMode.SYSIO)
@@ -380,15 +446,45 @@ class Paraformer(torch.nn.Module):
         decoder_net_output_names = decoder_net.get_output_names(decoder_net_graph_name)
         inputs = {
             decoder_net_input_names[0]: encoder_out.numpy(),
-            decoder_net_input_names[1]: memory_mask.numpy(),
-            decoder_net_input_names[2]: sematic_embeds.numpy(),
+            decoder_net_input_names[1]: sematic_embeds.numpy(),
+            decoder_net_input_names[2]: memory_mask.numpy(),
             decoder_net_input_names[3]: tgt_mask.numpy(),
         }
         outputs = decoder_net.process(decoder_net_graph_name, inputs)
         decoder_outs = torch.from_numpy(outputs[decoder_net_output_names[0]])
         """
 
-        decoder_outs = self.decoder(encoder_out, memory_mask, sematic_embeds, tgt_mask)
+        # export dynamic
+        """
+        input_names = ['encoder_out', 'sematic_embeds']
+        output_names = ['decoder_outs']
+        inputs = (encoder_out, sematic_embeds)
+        dynamic_axes = {
+            'encoder_out' : {1: 'seq_len'},
+            'sematic_embeds' : {1: 'seq_len'},
+        }
+        torch.onnx.export(self.decoder.cpu(), inputs, 'models/onnx/decoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12, dynamic_axes=dynamic_axes)
+        import sys
+        sys.exit(0)
+        """
+
+        # dynamic bmodel
+        """
+        from sophon import sail
+        decoder_net = sail.Engine("models/BM1688/decoder_f16.bmodel", 0, sail.IOMode.SYSIO)
+        decoder_net_graph_name = decoder_net.get_graph_names()[0]
+        decoder_net_input_names = decoder_net.get_input_names(decoder_net_graph_name)
+        decoder_net_output_names = decoder_net.get_output_names(decoder_net_graph_name)
+        inputs = {
+            decoder_net_input_names[0]: encoder_out.numpy(),
+            decoder_net_input_names[1]: sematic_embeds.numpy(),
+        }
+        outputs = decoder_net.process(decoder_net_graph_name, inputs)
+        decoder_outs = torch.from_numpy(outputs[decoder_net_output_names[0]])
+        """
+
+        # decoder_outs = self.decoder(encoder_out, sematic_embeds, memory_mask, tgt_mask)
+        decoder_outs = self.decoder(encoder_out, sematic_embeds, None, None)
         decoder_out = decoder_outs[:, :semantic_real_num] # [0]
         decoder_out = torch.log_softmax(decoder_out, dim=-1)
         return decoder_out, ys_pad_lens

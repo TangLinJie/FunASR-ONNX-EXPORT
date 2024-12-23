@@ -361,7 +361,7 @@ class SANMEncoder(nn.Module):
     def forward(
         self,
         xs_pad: torch.Tensor,
-        ilens: torch.Tensor,
+        ilens: torch.Tensor=None,
         prev_states: torch.Tensor = None,
         ctc: CTC = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
@@ -425,11 +425,13 @@ class SANMEncoder(nn.Module):
         if self.normalize_before:
             xs_pad = self.after_norm(xs_pad)
 
-        olens = masks.squeeze(1).sum(1)
+        # olens = masks.squeeze(1).sum(1)
         if len(intermediate_outs) > 0:
-            return (xs_pad, intermediate_outs), olens, None
+            # return (xs_pad, intermediate_outs), olens, None
+            return (xs_pad, intermediate_outs)
         # return xs_pad, olens, None
-        return xs_pad, olens
+        # return xs_pad, olens
+        return xs_pad
 
     def _add_overlap_chunk(self, feats: np.ndarray, cache: dict = {}):
         if len(cache) == 0:

@@ -277,7 +277,7 @@ class Paraformer(torch.nn.Module):
         # bmodel
         """
         from sophon import sail
-        encoder_net = sail.Engine("models/BM1688/encoder_f16.bmodel", 0, sail.IOMode.SYSIO)
+        encoder_net = sail.Engine("models/BM1688/encoder_f32.bmodel", 0, sail.IOMode.SYSIO)
         encoder_net_graph_name = encoder_net.get_graph_names()[0]
         encoder_net_input_names = encoder_net.get_input_names(encoder_net_graph_name)
         encoder_net_output_names = encoder_net.get_output_names(encoder_net_graph_name)
@@ -288,6 +288,7 @@ class Paraformer(torch.nn.Module):
         outputs = encoder_net.process(encoder_net_graph_name, inputs)
         encoder_out = torch.from_numpy(outputs[encoder_net_output_names[0]])
         encoder_out_lens = torch.from_numpy(outputs[encoder_net_output_names[1]])
+        encoder_out_lens = encoder_out_lens.type(torch.int32)
         """
         encoder_out, encoder_out_lens = self.encoder(speech, masks)
         encoder_out = encoder_out[:, :encoder_out_lens[0]]
@@ -319,18 +320,20 @@ class Paraformer(torch.nn.Module):
         # bmodel
         """
         from sophon import sail
-        calc_predictor_net = sail.Engine("../../../models/BM1684X/calc_predictor.bmodel", 1, sail.IOMode.SYSIO)
+        calc_predictor_net = sail.Engine("models/BM1688/calc_predictor_f16.bmodel", 0, sail.IOMode.SYSIO)
         calc_predictor_net_graph_name = calc_predictor_net.get_graph_names()[0]
         calc_predictor_net_input_names = calc_predictor_net.get_input_names(calc_predictor_net_graph_name)
+        calc_predictor_net_output_names = calc_predictor_net.get_output_names(calc_predictor_net_graph_name)
         inputs = {
             calc_predictor_net_input_names[0]: encoder_out.numpy(),
             calc_predictor_net_input_names[1]: encoder_out_mask.numpy(),
         }
         outputs = calc_predictor_net.process(calc_predictor_net_graph_name, inputs)
-        hidden = torch.from_numpy(outputs[0])
-        pre_token_length = torch.from_numpy(outputs[1])
-        alphas = torch.from_numpy(outputs[2])
+        hidden = torch.from_numpy(outputs[calc_predictor_net_output_names[0]])
+        pre_token_length = torch.from_numpy(outputs[calc_predictor_net_output_names[1]])
+        alphas = torch.from_numpy(outputs[calc_predictor_net_output_names[2]])
         """
+
         # pre_acoustic_embeds, pre_token_length, alphas, pre_peak_index = self.predictor(
         hidden, pre_token_length, alphas = self.predictor(
             encoder_out, encoder_out_mask, ignore_id=self.ignore_id
@@ -371,9 +374,10 @@ class Paraformer(torch.nn.Module):
         # bmodel
         """
         from sophon import sail
-        decoder_net = sail.Engine("../../../models/BM1684X/decoder.bmodel", 1, sail.IOMode.SYSIO)
+        decoder_net = sail.Engine("models/BM1688/decoder_f32.bmodel", 0, sail.IOMode.SYSIO)
         decoder_net_graph_name = decoder_net.get_graph_names()[0]
         decoder_net_input_names = decoder_net.get_input_names(decoder_net_graph_name)
+        decoder_net_output_names = decoder_net.get_output_names(decoder_net_graph_name)
         inputs = {
             decoder_net_input_names[0]: encoder_out.numpy(),
             decoder_net_input_names[1]: memory_mask.numpy(),
@@ -381,7 +385,7 @@ class Paraformer(torch.nn.Module):
             decoder_net_input_names[3]: tgt_mask.numpy(),
         }
         outputs = decoder_net.process(decoder_net_graph_name, inputs)
-        decoder_outs = torch.from_numpy(outputs[0])
+        decoder_outs = torch.from_numpy(outputs[decoder_net_output_names[0]])
         """
 
         decoder_outs = self.decoder(encoder_out, memory_mask, sematic_embeds, tgt_mask)

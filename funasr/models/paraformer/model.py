@@ -316,7 +316,7 @@ class Paraformer(torch.nn.Module):
         # dynamic bmodel
         """
         from sophon import sail
-        encoder_net = sail.Engine("models/BM1688/encoder_f16_new.bmodel", 0, sail.IOMode.SYSIO)
+        encoder_net = sail.Engine("models/BM1688/encoder_f32_new.bmodel", 0, sail.IOMode.SYSIO)
         encoder_net_graph_name = encoder_net.get_graph_names()[0]
         encoder_net_input_names = encoder_net.get_input_names(encoder_net_graph_name)
         encoder_net_output_names = encoder_net.get_output_names(encoder_net_graph_name)

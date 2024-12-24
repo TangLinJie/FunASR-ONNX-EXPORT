@@ -111,7 +111,6 @@ function gen_dynamic_encoder_fp16bmodel()
         --chip $target \
         --dynamic \
         --quantize_table ../tpu-mlir_compile/encoder_qtable \
-        --disable_layer_group \
         --model $4
     mv $4 $bmodel_dir/
 }

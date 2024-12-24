@@ -305,6 +305,7 @@ class Paraformer(torch.nn.Module):
         output_names = ['encoder_out']
         dynamic_axes = {
             'speech' : {1: 'seq_len'},
+            'encoder_out': {1: 'seq_len'},
         }
         inputs = (speech,)
         torch.onnx.export(self.encoder.cpu(), inputs, 'models/onnx/encoder.onnx', input_names=input_names, output_names=output_names, verbose=True, opset_version=12, dynamic_axes=dynamic_axes)

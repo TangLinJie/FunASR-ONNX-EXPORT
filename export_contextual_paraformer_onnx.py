@@ -53,6 +53,41 @@ wav_file = f"LibriSpeech/train-clean-5/7367/86737/7367-86737-0118.flac"
 speech, sample_rate = soundfile.read(wav_file)
 chunk_stride = int(chunk_size * sample_rate / 1000)
 
+"""
+speech, sample_rate = soundfile.read(wav_file)
+asr_res = asr_model.generate(input=speech,
+                                batch_size_s=300,
+                                fs=16000
+                                )
+print(asr_res)
+import sys
+sys.exit(0)
+
+acc_num = 0
+total_num = 0
+for audio_root_dir in os.listdir("LibriSpeech/train-clean-5"):
+    for audio_root_sub_dir in os.listdir(f"LibriSpeech/train-clean-5/{audio_root_dir}"):
+        labels_path = f"LibriSpeech/train-clean-5/{audio_root_dir}/{audio_root_sub_dir}/{audio_root_dir}-{audio_root_sub_dir}.trans.txt"
+        with open(labels_path) as f:
+            labels = [(line.split(' ')[0], ' '.join(line.strip().split(' ')[1:])) for line in f.readlines()]
+        labels = dict(labels)
+        for audio_name in os.listdir(f"LibriSpeech/train-clean-5/{audio_root_dir}/{audio_root_sub_dir}"):
+            if "flac" in audio_name:
+                speech, sample_rate = soundfile.read(f"LibriSpeech/train-clean-5/{audio_root_dir}/{audio_root_sub_dir}/{audio_name}")
+                asr_res = asr_model.generate(input=speech,
+                                                batch_size_s=300,
+                                                fs=16000
+                                                )
+                if asr_res[0]["text"].upper() == labels[audio_name.replace(".flac", "")]:
+                    print("acc")
+                    acc_num += 1
+                else:
+                    print(f"{asr_res[0]['text'].upper()}\n{labels[audio_name.replace('.flac', '')]}")
+                total_num += 1
+print("acc%: ", acc_num / total_num)
+import sys
+sys.exit(0)
+"""
 cache = {}
 total_chunk_num = int(len((speech)-1)/chunk_stride+1)
 speech_start = False

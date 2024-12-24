@@ -96,6 +96,45 @@ function gen_dynamic_fp32bmodel()
     mv $4 $bmodel_dir/
 }
 
+function gen_dynamic_encoder_fp16bmodel()
+{
+    model_transform.py \
+        --model_name $1 \
+        --model_def ${2} \
+        --input_shapes $3 \
+        --dynamic \
+        --mlir transformed.mlir
+    
+    model_deploy.py \
+        --mlir transformed.mlir \
+        --quantize F16 \
+        --chip $target \
+        --dynamic \
+        --quantize_table ../tpu-mlir_compile/encoder_qtable \
+        --disable_layer_group \
+        --model $4
+    mv $4 $bmodel_dir/
+}
+
+function gen_dynamic_encoder_fp32bmodel()
+{
+    model_transform.py \
+        --model_name $1 \
+        --model_def ${2} \
+        --input_shapes $3 \
+        --dynamic \
+        --mlir transformed.mlir
+    
+    model_deploy.py \
+        --mlir transformed.mlir \
+        --quantize F32 \
+        --chip $target \
+        --dynamic \
+        --disable_layer_group \
+        --model $4
+    mv $4 $bmodel_dir/
+}
+
 # static
 # encoder_model_name=encoder
 # encoder_onnx_file=onnx/encoder.onnx
@@ -113,13 +152,13 @@ encoder_model_name=encoder
 encoder_onnx_file=onnx/encoder.onnx
 encoder_input_shapes=[[1,1000,560]]
 encoder_bmodel_file=encoder_f16.bmodel 
-gen_dynamic_fp16bmodel $encoder_model_name $encoder_onnx_file $encoder_input_shapes $encoder_bmodel_file
+gen_dynamic_encoder_fp16bmodel $encoder_model_name $encoder_onnx_file $encoder_input_shapes $encoder_bmodel_file
 
 encoder_model_name=encoder
 encoder_onnx_file=onnx/encoder.onnx
 encoder_input_shapes=[[1,1000,560]]
 encoder_bmodel_file=encoder_f32.bmodel 
-gen_dynamic_fp32bmodel $encoder_model_name $encoder_onnx_file $encoder_input_shapes $encoder_bmodel_file
+gen_dynamic_encoder_fp32bmodel $encoder_model_name $encoder_onnx_file $encoder_input_shapes $encoder_bmodel_file
 
 # static
 # calc_predictor_model_name=calc_predictor

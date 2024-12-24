@@ -279,8 +279,12 @@ class Paraformer(torch.nn.Module):
 
         # static bmodel
         """
+        from torch.nn import functional as F
+        real_num = speech.shape[1]
+        masks = F.pad(masks, (0,1000-real_num), "constant", 0)
+        speech = F.pad(speech, (0,0,0,1000-real_num), "constant", 0)
         from sophon import sail
-        encoder_net = sail.Engine("models/BM1688/encoder_f32.bmodel", 0, sail.IOMode.SYSIO)
+        encoder_net = sail.Engine("models/BM1688/encoder_f16_new.bmodel", 0, sail.IOMode.SYSIO)
         encoder_net_graph_name = encoder_net.get_graph_names()[0]
         encoder_net_input_names = encoder_net.get_input_names(encoder_net_graph_name)
         encoder_net_output_names = encoder_net.get_output_names(encoder_net_graph_name)
@@ -292,6 +296,7 @@ class Paraformer(torch.nn.Module):
         encoder_out = torch.from_numpy(outputs[encoder_net_output_names[0]])
         encoder_out_lens = torch.from_numpy(outputs[encoder_net_output_names[1]])
         encoder_out_lens = encoder_out_lens.type(torch.int32)
+        encoder_out = encoder_out[:, :encoder_out_lens[0]]
         """
 
         # dynamic export
@@ -354,6 +359,10 @@ class Paraformer(torch.nn.Module):
         # static bmodel
         """
         from sophon import sail
+        from torch.nn import functional as F
+        encoder_out_mask = F.pad(encoder_out_mask, (0,1000-real_num), "constant", 0)
+        encoder_out = F.pad(encoder_out, (0,0,0,1000-real_num), "constant", 0)
+
         calc_predictor_net = sail.Engine("models/BM1688/calc_predictor_f16.bmodel", 0, sail.IOMode.SYSIO)
         calc_predictor_net_graph_name = calc_predictor_net.get_graph_names()[0]
         calc_predictor_net_input_names = calc_predictor_net.get_input_names(calc_predictor_net_graph_name)
@@ -439,6 +448,14 @@ class Paraformer(torch.nn.Module):
 
         # static bmodel
         """
+        from torch.nn import functional as F
+        real_num = encoder_out.shape[1]
+        memory_mask = F.pad(memory_mask, (0,1000-real_num), "constant", 0)
+        encoder_out = F.pad(encoder_out, (0,0,0,1000-real_num), "constant", 0)
+        semantic_real_num = sematic_embeds.shape[1]
+        sematic_embeds = F.pad(sematic_embeds, (0,0,0,600-semantic_real_num), "constant", 0)
+        tgt_mask = F.pad(tgt_mask, (0,0,0,600-semantic_real_num), "constant", 0)
+
         from sophon import sail
         decoder_net = sail.Engine("models/BM1688/decoder_f32.bmodel", 0, sail.IOMode.SYSIO)
         decoder_net_graph_name = decoder_net.get_graph_names()[0]
